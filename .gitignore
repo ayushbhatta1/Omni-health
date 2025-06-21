@@ -91,11 +91,14 @@ jspm_packages/
 # dotenv environment variables file
 .env
 
-# Model files (if they're large)
+# Model files (large files that exceed GitHub limits)
 *.pt
 *.pth
 *.h5
 *.pb
+*.safetensors
+models/
+yolov8n.pt
 
 # Temporary files
 *.tmp
