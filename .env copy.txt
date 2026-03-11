@@ -1,5 +1,0 @@
-API_KEY=abcdef123456
-DATABASE_URL=postgresql://user:password@localhost/dbname
-PORT=8000
-DEBUG=true
-

@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 # Omni-health
-=======
-# Medical AI Assistant
 
 A state-of-the-art, multimodal medical AI system designed to detect early signs of various diseases through analysis of text, audio, images, and video inputs.
 
@@ -25,8 +22,8 @@ A state-of-the-art, multimodal medical AI system designed to detect early signs 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/medical-ai-assistant.git
-cd medical-ai-assistant
+git clone https://github.com/yourusername/Omni-health.git
+cd Omni-health
 ```
 
 2. Create and activate a virtual environment:
@@ -45,6 +42,18 @@ pip install -r requirements.txt
 python scripts/download_models.py
 ```
 
+5. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+6. Install frontend dependencies:
+```bash
+cd frontend
+npm install
+```
+
 ## Usage
 
 1. Start the backend server:
@@ -52,23 +61,54 @@ python scripts/download_models.py
 python -m app.main
 ```
 
-2. The API will be available at `http://localhost:8000`
+2. Start the frontend dev server:
+```bash
+cd frontend
+npm run dev
+```
 
-3. API Endpoints:
-   - POST `/analyze`: Submit multimodal data for analysis
-   - GET `/health`: Check API health status
+3. The API will be available at `http://localhost:8000`
+4. The frontend will be available at `http://localhost:3000`
 
-## API Documentation
+## API Endpoints
 
-### Analyze Endpoint
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/analyze` | Submit multimodal data (text + files) for combined analysis |
+| POST | `/analyze/image` | Analyze a single image file |
+| POST | `/analyze/audio` | Analyze a single audio file |
+| POST | `/analyze/video` | Analyze a single video file |
+| POST | `/analyze/text` | Analyze text symptoms |
+| GET | `/history` | Retrieve past analysis results |
+| GET | `/health` | Health check |
 
-Submit a POST request to `/analyze` with any combination of:
-- Text description of symptoms
-- Medical images
-- Audio recordings
-- Video recordings
+### Example: Analyze an Image
 
-Example request:
+```python
+import requests
+
+with open('skin_photo.jpg', 'rb') as f:
+    response = requests.post(
+        'http://localhost:8000/analyze/image',
+        files={'file': ('skin_photo.jpg', f)}
+    )
+print(response.json())
+```
+
+### Example: Analyze Text Symptoms
+
+```python
+import requests
+
+response = requests.post(
+    'http://localhost:8000/analyze/text',
+    json={'text': 'Patient reports persistent cough and fatigue'}
+)
+print(response.json())
+```
+
+### Example: Combined Multimodal Analysis
+
 ```python
 import requests
 
@@ -110,5 +150,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Medical imaging datasets: ISIC, HAM10000, Breast Cancer Wisconsin, NIH Chest X-rays
 - Audio datasets: Coswara, Parkinson's Voice Initiative
 - Video datasets: Parkinson's Gait Dataset, Facial Expression Datasets
-- AI models: CLIP, SAM, EfficientNet, YOLOv8, DINOv2, Whisper, HuBERT 
->>>>>>> 7289f4d (Initial commit — upload Omni-health project)
+- AI models: CLIP, SAM, EfficientNet, YOLOv8, DINOv2, Whisper, HuBERT
