@@ -13,12 +13,11 @@ import {
   ListItem,
   ListIcon,
   Select,
-  HStack,
   useColorModeValue,
 } from '@chakra-ui/react';
 import { CheckCircleIcon } from '@chakra-ui/icons';
-import { analyzeSymptoms, DiagnosisResponse } from '../services/openai';
-import { SymptomHistory, SymptomRecord } from './SymptomHistory';
+import { analyzeSymptoms, type DiagnosisResponse } from '../services/openai';
+import { SymptomHistory, type SymptomRecord } from './SymptomHistory';
 
 export const SymptomAnalysis: React.FC = () => {
   const [symptoms, setSymptoms] = useState('');

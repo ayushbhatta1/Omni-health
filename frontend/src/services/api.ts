@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AnalysisHistory } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -60,7 +61,10 @@ export const analyzeText = async (text: string): Promise<AnalysisResponse> => {
   return response.data;
 };
 
-export const getAnalysisHistory = async (): Promise<AnalysisResponse[]> => {
-  const response = await api.get<AnalysisResponse[]>('/history');
+// The History page needs id, type and date for each entry. The backend's
+// /history is still a placeholder that returns [], so when it's implemented it
+// must return these fields too (see AnalysisHistory in ../types).
+export const getAnalysisHistory = async (): Promise<AnalysisHistory[]> => {
+  const response = await api.get<AnalysisHistory[]>('/history');
   return response.data;
 }; 

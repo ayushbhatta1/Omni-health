@@ -13,3 +13,16 @@ jobs:
       # Only the web layer is installed; the tests swap in a fake for the ML models
       - run: pip install fastapi==0.104.1 python-multipart==0.0.20 "httpx<0.28" pytest
       - run: pytest -q tests/
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --ignore-scripts
+      - run: npx tsc -p tsconfig.app.json --noEmit
+      - run: npx vite build

@@ -14,11 +14,12 @@ import {
   AlertDescription,
 } from '@chakra-ui/react';
 import { FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
-import { AnalysisResult as AnalysisResultType } from '../types';
+import type { AnalysisResult as AnalysisResultType } from '../types';
 import { formatConfidence } from '../utils/formatting';
 
 interface AnalysisResultProps {
-  result: AnalysisResultType;
+  // Only the fields the card shows, so the API response can be passed directly
+  result: Pick<AnalysisResultType, 'findings' | 'recommendations' | 'confidence' | 'disclaimer'>;
 }
 
 export const AnalysisResult: React.FC<AnalysisResultProps> = ({ result }) => {
