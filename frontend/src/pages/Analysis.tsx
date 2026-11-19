@@ -97,42 +97,6 @@ export const Analysis: React.FC = () => {
     }
   };
 
-  const handleFileAnalysis = async (file: File, type: 'image' | 'audio' | 'video') => {
-    try {
-      let result;
-      switch (type) {
-        case 'image':
-          result = await analyzeImage(file);
-          break;
-        case 'audio':
-          result = await analyzeAudio(file);
-          break;
-        case 'video':
-          result = await analyzeVideo(file);
-          break;
-      }
-
-      toast({
-        title: 'Analysis Complete',
-        description: 'The file has been analyzed successfully.',
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-
-      return result;
-    } catch (error) {
-      toast({
-        title: 'Analysis Failed',
-        description: 'There was an error analyzing the file.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-      throw error;
-    }
-  };
-
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={8} align="stretch">

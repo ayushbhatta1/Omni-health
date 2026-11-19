@@ -4,7 +4,7 @@ import {
   ColorModeScript,
   createLocalStorageManager,
 } from '@chakra-ui/react';
-import { theme } from '../theme';
+import theme from '../theme';
 
 const colorModeManager = createLocalStorageManager('medical-ai-color-mode');
 

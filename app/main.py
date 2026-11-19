@@ -1,26 +1,46 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
-import uvicorn
+import logging
 import os
+import tempfile
 from .ai_models.orchestrator import AIOrchestrator
 
 app = FastAPI(title="Medical AI Assistant API")
 
-# Configure CORS
+logger = logging.getLogger(__name__)
+
+# Configure CORS. Browsers reject "*" together with credentials, and the API uses no
+# cookies, so list the frontend origins explicitly (comma-separated in ALLOWED_ORIGINS).
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+# Upload limits in megabytes, overridable with MAX_UPLOAD_MB
+MAX_UPLOAD_BYTES = int(float(os.getenv("MAX_UPLOAD_MB", "100")) * 1024 * 1024)
+MAX_TEXT_CHARS = 5000
 
 # Initialize AI Orchestrator
 ai_orchestrator = AIOrchestrator()
 
 DISCLAIMER = "This is not a substitute for professional medical advice. Always consult a healthcare professional."
+
+# The text model's classification head is not trained (Bio_ClinicalBERT is loaded
+# with a fresh, random head), so its softmax "confidence" is noise. Never show it.
+UNTRAINED_FIELDS = {"confidence"}
+
+NO_ANALYSIS_FINDING = "Automated analysis isn't available for this input yet."
+NO_ANALYSIS_RECOMMENDATION = "Please talk to a healthcare professional about your symptoms."
 
 
 class TextRequest(BaseModel):
@@ -34,11 +54,27 @@ class AnalysisResponse(BaseModel):
     disclaimer: str = DISCLAIMER
 
 
+async def _read_upload(upload: UploadFile) -> bytes:
+    """Read an upload, refusing empty files and files over MAX_UPLOAD_BYTES."""
+    content = await upload.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File is too large")
+    if not content:
+        raise HTTPException(status_code=400, detail="File is empty")
+    return content
+
+
 def _save_upload(upload: UploadFile, content: bytes) -> str:
-    """Save an uploaded file to temp/ and return the path."""
-    os.makedirs("temp", exist_ok=True)
-    path = f"temp/{upload.filename}"
-    with open(path, "wb") as f:
+    """Save an upload to a fresh temp file and return its path.
+
+    The client's filename is never used as a path: a name like "../app/main.py"
+    would otherwise write outside temp/, and two uploads with the same name
+    would overwrite each other. Only the extension is kept, so the analysers
+    can still tell the format.
+    """
+    suffix = os.path.splitext(os.path.basename(upload.filename or ""))[1][:10]
+    fd, path = tempfile.mkstemp(prefix="upload_", suffix=suffix)
+    with os.fdopen(fd, "wb") as f:
         f.write(content)
     return path
 
@@ -64,6 +100,8 @@ def _to_response(results: dict) -> AnalysisResponse:
         if analysis:
             if isinstance(analysis, dict):
                 for k, v in analysis.items():
+                    if k in UNTRAINED_FIELDS:
+                        continue
                     if v:
                         findings.append(f"{k}: {v}")
             elif isinstance(analysis, str):
@@ -75,12 +113,15 @@ def _to_response(results: dict) -> AnalysisResponse:
         elif diag:
             findings.append(str(diag))
 
+    # The diagnosis and recommendation steps are still placeholders, so an empty
+    # result means "nothing was analysed", not "you're fine". Saying "No
+    # significant findings" here would falsely reassure someone with symptoms.
     if not findings:
-        findings = ["No significant findings detected."]
+        findings = [NO_ANALYSIS_FINDING]
 
     recommendations = results.get("recommendations", [])
     if not recommendations:
-        recommendations = ["Continue routine health monitoring."]
+        recommendations = [NO_ANALYSIS_RECOMMENDATION]
 
     scores = results.get("confidence_scores", {})
     confidence = max(scores.values()) if scores else 0.0
@@ -97,7 +138,7 @@ def _to_response(results: dict) -> AnalysisResponse:
 @app.post("/analyze/image", response_model=AnalysisResponse)
 async def analyze_image(file: UploadFile = File(...)):
     """Analyze a single image file."""
-    content = await file.read()
+    content = await _read_upload(file)
     path = _save_upload(file, content)
     try:
         results = ai_orchestrator.analyze_input(image_path=path)
@@ -109,7 +150,7 @@ async def analyze_image(file: UploadFile = File(...)):
 @app.post("/analyze/audio", response_model=AnalysisResponse)
 async def analyze_audio(file: UploadFile = File(...)):
     """Analyze a single audio file."""
-    content = await file.read()
+    content = await _read_upload(file)
     path = _save_upload(file, content)
     try:
         results = ai_orchestrator.analyze_input(audio_path=path)
@@ -121,7 +162,7 @@ async def analyze_audio(file: UploadFile = File(...)):
 @app.post("/analyze/video", response_model=AnalysisResponse)
 async def analyze_video(file: UploadFile = File(...)):
     """Analyze a single video file."""
-    content = await file.read()
+    content = await _read_upload(file)
     path = _save_upload(file, content)
     try:
         results = ai_orchestrator.analyze_input(video_path=path)
@@ -133,7 +174,12 @@ async def analyze_video(file: UploadFile = File(...)):
 @app.post("/analyze/text", response_model=AnalysisResponse)
 async def analyze_text(request: TextRequest):
     """Analyze text symptoms."""
-    results = ai_orchestrator.analyze_input(text=request.text)
+    text = request.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text is empty")
+    if len(text) > MAX_TEXT_CHARS:
+        raise HTTPException(status_code=413, detail=f"Text is over {MAX_TEXT_CHARS} characters")
+    results = ai_orchestrator.analyze_input(text=text)
     return _to_response(results)
 
 
@@ -158,12 +204,14 @@ async def analyze_input(
     video_path = None
 
     try:
+        if text and len(text) > MAX_TEXT_CHARS:
+            raise HTTPException(status_code=413, detail=f"Text is over {MAX_TEXT_CHARS} characters")
         if image:
-            image_path = _save_upload(image, await image.read())
+            image_path = _save_upload(image, await _read_upload(image))
         if audio:
-            audio_path = _save_upload(audio, await audio.read())
+            audio_path = _save_upload(audio, await _read_upload(audio))
         if video:
-            video_path = _save_upload(video, await video.read())
+            video_path = _save_upload(video, await _read_upload(video))
 
         results = ai_orchestrator.analyze_input(
             text=text,
@@ -172,8 +220,12 @@ async def analyze_input(
             video_path=video_path
         )
         return results
-    except Exception as e:
-        return {"error": str(e)}
+    except HTTPException:
+        raise
+    except Exception:
+        # Log the details server-side; don't send stack details to the browser
+        logger.exception("Multimodal analysis failed")
+        return {"error": "Analysis failed"}
     finally:
         _cleanup(image_path)
         _cleanup(audio_path)
@@ -187,4 +239,12 @@ async def health_check():
 
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    import uvicorn
+
+    # Local development defaults; set HOST=0.0.0.0 to expose it on your network
+    uvicorn.run(
+        "app.main:app",
+        host=os.getenv("HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "8000")),
+        reload=os.getenv("RELOAD", "true").lower() == "true",
+    )
