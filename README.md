@@ -126,6 +126,24 @@ response = requests.post('http://localhost:8000/analyze', files=files, data=data
 print(response.json())
 ```
 
+## Tests
+
+The API tests run without the ML models (they use a small fake), so they're quick:
+
+```bash
+pip install fastapi==0.104.1 python-multipart==0.0.20 "httpx<0.28" pytest
+pytest -q tests/
+```
+
+They also run on every push in GitHub Actions.
+
+## Configuration notes
+
+- `ALLOWED_ORIGINS`: comma-separated frontend URLs the API accepts (default `http://localhost:5173,http://localhost:3000`).
+- `MAX_UPLOAD_MB`: largest upload the API accepts (default 100).
+- `HOST` / `PORT` / `RELOAD`: used by `python -m app.main`; it listens on 127.0.0.1 unless you set `HOST`.
+- Keep API keys on the backend only. Anything in a `VITE_` variable is copied into the public frontend bundle.
+
 ## Safety & Ethics
 
 - This AI system is not a replacement for professional medical advice
