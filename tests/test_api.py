@@ -83,3 +83,19 @@ def test_cors_does_not_allow_any_origin():
     })
     assert res.headers.get("access-control-allow-origin") != "https://evil.example"
     assert res.headers.get("access-control-allow-origin") != "*"
+
+
+def test_empty_analysis_does_not_reassure():
+    body = client.post("/analyze/text", json={"text": "chest pain"}).json()
+    joined = " ".join(body["findings"] + body["recommendations"]).lower()
+    assert "no significant findings" not in joined
+    assert "routine health monitoring" not in joined
+    assert body["recommendations"] == ["See a doctor"]  # fake orchestrator's own advice kept
+
+
+def test_untrained_confidence_is_hidden():
+    res = main._to_response({"text_analysis": {"symptoms": [], "confidence": [[0.51, 0.49]]},
+                             "recommendations": []})
+    assert not any("confidence" in f for f in res.findings)
+    assert res.findings == [main.NO_ANALYSIS_FINDING]
+    assert res.recommendations == [main.NO_ANALYSIS_RECOMMENDATION]

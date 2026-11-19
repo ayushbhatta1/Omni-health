@@ -35,6 +35,13 @@ ai_orchestrator = AIOrchestrator()
 
 DISCLAIMER = "This is not a substitute for professional medical advice. Always consult a healthcare professional."
 
+# The text model's classification head is not trained (Bio_ClinicalBERT is loaded
+# with a fresh, random head), so its softmax "confidence" is noise. Never show it.
+UNTRAINED_FIELDS = {"confidence"}
+
+NO_ANALYSIS_FINDING = "Automated analysis isn't available for this input yet."
+NO_ANALYSIS_RECOMMENDATION = "Please talk to a healthcare professional about your symptoms."
+
 
 class TextRequest(BaseModel):
     text: str
@@ -93,6 +100,8 @@ def _to_response(results: dict) -> AnalysisResponse:
         if analysis:
             if isinstance(analysis, dict):
                 for k, v in analysis.items():
+                    if k in UNTRAINED_FIELDS:
+                        continue
                     if v:
                         findings.append(f"{k}: {v}")
             elif isinstance(analysis, str):
@@ -104,12 +113,15 @@ def _to_response(results: dict) -> AnalysisResponse:
         elif diag:
             findings.append(str(diag))
 
+    # The diagnosis and recommendation steps are still placeholders, so an empty
+    # result means "nothing was analysed", not "you're fine". Saying "No
+    # significant findings" here would falsely reassure someone with symptoms.
     if not findings:
-        findings = ["No significant findings detected."]
+        findings = [NO_ANALYSIS_FINDING]
 
     recommendations = results.get("recommendations", [])
     if not recommendations:
-        recommendations = ["Continue routine health monitoring."]
+        recommendations = [NO_ANALYSIS_RECOMMENDATION]
 
     scores = results.get("confidence_scores", {})
     confidence = max(scores.values()) if scores else 0.0
